@@ -84,7 +84,7 @@ def seconds_to_pace_mmss(sec_per_km: Union[int, float]) -> str:
     """将每公里用时（秒）格式化为 'mm\'ss\'\''（如 05'23''）。"""
     total = int(round(sec_per_km))
     mm, ss = divmod(total, 60)
-    return f"{mm:02d}\'{ss:02d}\'\'"
+    return f"{mm:02d}\'{ss:02d}\" "
 
 def random_in_range_numeric(low: float, high: float, precision: int = 0) -> Union[int, float]:
     """在 [low, high] 内随机取值，按 precision 保留小数位，precision=0 返回 int。"""
@@ -159,18 +159,24 @@ class KeepConfig:
     end_time: TimeStr = ""  # 默认留空，运行时自动填充当前时间
 
     # 指标区间（与原始脚本保持一致）
+    battery: NumberRange = field(default_factory=lambda: NumberRange(22, 94, precision=0))
+    temp : NumberRange = field(default_factory=lambda: NumberRange(5, 10, precision=0))
     total_km: NumberRange = field(default_factory=lambda: NumberRange(3.02, 3.30, precision=2))
     sport_time: TimeRange = field(default_factory=lambda: TimeRange("00:21:00", "00:23:00"))
     total_time: TimeRange = field(default_factory=lambda: TimeRange("00:34:00", "00:39:00"))
+    exercise_load: NumberRange = field(default_factory=lambda: NumberRange(30, 35, precision=0))
     cumulative_climb: NumberRange = field(default_factory=lambda: NumberRange(90, 96, precision=0))
-    average_cadence: NumberRange = field(default_factory=lambda: NumberRange(76, 81, precision=0))
-    exercise_load: NumberRange = field(default_factory=lambda: NumberRange(48, 51, precision=0))
+    average_cadence: NumberRange = field(default_factory=lambda: NumberRange(130, 135, precision=0))
+    average_power: NumberRange = field(default_factory=lambda: NumberRange(140, 160, precision=0))
+    average_stride: Optional[NumberRange] = None
 
     # 字体样式（可进一步外置到 JSON）
-    font_regular: TextStyle = field(default_factory=lambda: TextStyle("fonts/SourceHanSansCN-Regular.otf", 36, (0, 0, 0)))
-    font_bold_big: TextStyle = field(default_factory=lambda: TextStyle("fonts/QanelasBlack.otf", 180, (0, 0, 0)))
-    font_semibold: TextStyle = field(default_factory=lambda: TextStyle("fonts/QanelasSemiBold.otf", 65, (0, 0, 0)))
-    font_clock: TextStyle = field(default_factory=lambda: TextStyle("fonts/SourceHanSansCN-Regular.otf", 40, (0, 0, 0)))
+    font_regular: TextStyle = field(default_factory=lambda: TextStyle("fonts/HarmonyOS_Sans_SC_Medium.ttf", 36, (0, 0, 0)))
+    font_bold_big: TextStyle = field(default_factory=lambda: TextStyle("fonts/KeepSans-ExtraBold.otf", 180, (0, 0, 0)))
+    font_semibold: TextStyle = field(default_factory=lambda: TextStyle("fonts/KeepSans-Bold.otf", 65, (0, 0, 0)))
+    font_clock: TextStyle = field(default_factory=lambda: TextStyle("fonts/HarmonyOS_Sans_Regular.ttf", 40, (0, 0, 0)))
+    font_battery: TextStyle = field(default_factory=lambda: TextStyle("fonts/HarmonyOS_Sans_Regular.ttf", 30, (0, 0, 0)))
+    font_username: TextStyle = field(default_factory=lambda: TextStyle("fonts/HarmonyOS_Sans_Regular.ttf", 30, (0, 0, 0)))
 
     # 偏好文件（可记录最近保存路径、上次用户名等）
     prefs_file: str = "keepsultan_prefs.json"
@@ -217,6 +223,13 @@ class KeepConfig:
         for k, v in raw.items():
             if k in {"template", "map", "avatar", "username", "date", "end_time", "prefs_file"}:
                 setattr(base, k, str(v))
+            elif k == "weather":
+                if isinstance(v, list):
+                    base.weather = v
+                else:
+                    base.weather = [str(v)]
+            elif k == "temp":
+                base.temp = _nr(v, base.temp)
             elif k == "total_km":
                 base.total_km = _nr(v, base.total_km)
             elif k == "sport_time":
@@ -245,7 +258,16 @@ class KeepConfig:
             elif k == "font_clock" and isinstance(v, dict):
                 base.font_clock = TextStyle(v.get("font_path", base.font_clock.font_path),
                                             int(v.get("font_size", base.font_clock.font_size)),
-                                            tuple(v.get("color", base.font_clock.color)))  # type: ignore
+                                            tuple(v.get("color", base.font_clock.color)))
+            elif k == "font_battery" and isinstance(v, dict):
+                base.font_battery = TextStyle(v.get("font_path", base.font_battery.font_path),
+                                            int(v.get("font_size", base.font_battery.font_size)),
+                                            tuple(v.get("color", base.font_battery.color)))# type: ignore
+            elif k == "font_username" and isinstance(v, dict):
+                base.font_username = TextStyle(v.get("font_path", base.font_username.font_path),
+                                            int(v.get("font_size", base.font_username.font_size)),
+                                            tuple(v.get("color", base.font_username.color)))# type: ignore
+
 
         return base
 
@@ -319,12 +341,13 @@ class ImageEditor:
             raise RuntimeError("Base image not loaded")
         self.img.paste(img, position, img if img.mode in ("RGBA",) else None)
 
-    def draw_text(self, text: str, position: Point, style: TextStyle) -> None:
+    def draw_text(self, text: str, position: Point, style: TextStyle, anchor: str = None) -> None:
         if self.img is None:
             raise RuntimeError("Base image not loaded")
         draw = ImageDraw.Draw(self.img)
+
         font = ImageFont.truetype(style.font_path, style.font_size)
-        draw.text(position, text, fill=style.color, font=font)
+        draw.text(position, text, fill=style.color, font=font, anchor=anchor)
 
     def save(self, path: Union[str, Path]) -> None:
         if self.img is None:
@@ -406,14 +429,14 @@ class KeepSultanApp:
         # 2) 头像（允许为空）
         if self.cfg.avatar:
             avatar_raw = self.assets.load_image(self.cfg.avatar)
-            avatar_img = make_circular_avatar(avatar_raw, (100, 100))
-            self.editor.paste(avatar_img, (40, 250))
+            avatar_img = make_circular_avatar(avatar_raw, (103, 103))
+            self.editor.paste(avatar_img, (52, 323))
 
         # 3) 地图（允许为空）
         if self.cfg.map:
             map_raw = self.assets.load_image(self.cfg.map)
-            map_img = resize_keep_alpha(map_raw, (1000, 800))
-            self.editor.paste(map_img, (40, 720))
+            map_img = resize_keep_alpha(map_raw, (1156, 945))
+            self.editor.paste(map_img, (50, 862))
 
         # 4) 随机/计算指标
         if self.cfg.date == "today":
@@ -433,35 +456,49 @@ class KeepSultanApp:
         start_time = self.calculate_start_time(end_time, total_time)
         total_km = self.cfg.total_km.sample()
         # 轻微加 0.01，避免随机数取不到两位的情形
-        total_km = round(float(total_km) + 0.01, 2) if isinstance(total_km, float) else total_km
+        total_km = round(float(total_km), 2) if isinstance(total_km, float) else total_km
+        total_km_str = f"{ total_km:.2f}"
 
+        sport_sec = parse_time_to_seconds(sport_time)
         pace = self.calculate_pace(float(total_km), sport_time)
         cost = self.calculate_cost(total_time)
 
         cumulative_climb = self.cfg.cumulative_climb.sample()
         average_cadence = self.cfg.average_cadence.sample()
         exercise_load = self.cfg.exercise_load.sample()
+        average_power = self.cfg.average_power.sample()
 
+        sport_min = sport_sec / 60
+        if average_cadence > 0 and sport_min > 0:
+            stride_val = (total_km * 1000) / (average_cadence * sport_min)
+            stride = f"{stride_val:.2f}"
+        else:
+            stride = "0.00"
+
+        weather = random.choice(self.cfg.weather)
+        temp = self.cfg.temp.sample()
         self.logger.info(f"Generated data: date={date}, username={self.cfg.username}, end_time={end_time}, start_time={start_time}, total_km={total_km}, sport_time={sport_time}, total_time={total_time}, pace={pace}, cost={cost}, cumulative_climb={cumulative_climb}, average_cadence={average_cadence}, exercise_load={exercise_load}")
-
+        battery = self.cfg.battery.sample()
         # 5) 文本绘制（坐标与字体取自原始脚本）
-        self.editor.draw_text(end_time[:5], (50, 25), self.cfg.font_clock)  # 系统时间 HH:MM
-        self.editor.draw_text(self.cfg.username or "", (160, 240), TextStyle(self.cfg.font_regular.font_path, 40, (0, 0, 0))) # 用户名
-        self.editor.draw_text(f"{date} {start_time[:5]} - {end_time[:5]}", (160, 290), TextStyle(self.cfg.font_regular.font_path, 36, (155, 155, 155))) # 日期时间
 
-        self.editor.draw_text(str(total_km), (50, 485), self.cfg.font_bold_big)  # 公里数
-        self.editor.draw_text("公里", (418, 610), TextStyle(self.cfg.font_regular.font_path, 43, (0, 0, 0)))
+        self.editor.draw_text(str(battery),(1127, 52),self.cfg.font_battery)
+        self.editor.draw_text(end_time[:5], (61, 45), self.cfg.font_clock)  # 系统时间 HH:MM
+        self.editor.draw_text(self.cfg.username or "", (182, 323), self.cfg.font_username) # 用户名
+        self.editor.draw_text(f"{date} {start_time[:5]} - {end_time[:5]} 北京市 · {weather} · {temp}℃", (182, 383), self.cfg.font_regular) # 日期时间
 
-        self.editor.draw_text(str(sport_time), (55, 1750), self.cfg.font_semibold)  # 运动时长
-        self.editor.draw_text(str(pace), (445, 1750), self.cfg.font_semibold)      # 平均配速
-        self.editor.draw_text(str(cost), (800, 1750), self.cfg.font_semibold)      # 运动消耗
+        self.editor.draw_text(str(total_km_str), (65, 595), self.cfg.font_bold_big)  # 公里数
 
-        self.editor.draw_text(str(total_time), (55, 1910), self.cfg.font_semibold)  # 总时长
-        self.editor.draw_text(str(cumulative_climb), (445, 1910), self.cfg.font_semibold)  # 累计爬升
-        # 对齐规则：>100 与 <=100 使用不同起点（兼容原脚本）
-        cad_x = 780 if safe_int(average_cadence) > 100 else 800
-        self.editor.draw_text(str(average_cadence), (cad_x, 1910), self.cfg.font_semibold)  # 平均步频
-        self.editor.draw_text(str(exercise_load), (55, 2070), self.cfg.font_semibold)  # 运动负荷
+        self.editor.draw_text(str(sport_time), (65, 2069), self.cfg.font_semibold)  # 运动时长
+        self.editor.draw_text(str(pace), (522, 2069), self.cfg.font_semibold)      # 平均配速
+        self.editor.draw_text(str(cost), (957, 2069), self.cfg.font_semibold)      # 运动消耗
+
+        self.editor.draw_text(str(total_time), (65, 2270), self.cfg.font_semibold)  # 总时长
+        self.editor.draw_text(str(exercise_load), (522, 2270), self.cfg.font_semibold) # 运动负荷
+        self.editor.draw_text(str(cumulative_climb), (957, 2270), self.cfg.font_semibold)  # 累计爬升
+
+        self.editor.draw_text(str(average_cadence), (65, 2471), self.cfg.font_semibold)  # 平均步频
+        self.editor.draw_text(str(average_power), (522, 2471), self.cfg.font_semibold)  # 平均功率
+        self.editor.draw_text(str(stride), (957, 2471), self.cfg.font_semibold)  # 平均步幅
 
         return self.editor.img
 
@@ -475,7 +512,7 @@ class KeepSultanApp:
 def build_argparser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(description="KeepSultan CLI")
     p.add_argument("-c", "--config", type=str, default="config.json", help="配置 JSON 路径，默认 config.json")
-    p.add_argument("-s", "--save", type=str, default="save.png", help="输出图片路径（含文件名）")
+    p.add_argument("-s", "--save", type=str, default="output/save.png", help="输出图片路径（含文件名）")
     # 允许覆盖关键字段
     p.add_argument("--template", type=str, help="模板图片路径或 URL")
     p.add_argument("--map", type=str, help="地图图片路径或 URL")

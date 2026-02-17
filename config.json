@@ -1,73 +1,82 @@
 {
-  "template": "scr/template.png",
-  "map": "scr/map3.png",
-  "avatar": "C:/Users/18505/Downloads/126076978.jpg",
-  "username": "UserName",
-  "date": "today",
-  "end_time": "now",
+  "template": "scr/template_new.png",
+  "avatar": "scr/icon.ico",
+  "battery": {
+    "low": 20,
+    "high": 94,
+    "precision": 0
+  },
+  "username": "电棍",
+        "map": "scr/map/1.png",
+        "date": "2025/9/19",
+        "end_time": "19:50",
+        "weather": ["晴","多云","阴"],
+        "temp": {
+          "low": 13,
+          "high": 20,
+          "precision": 0},
   "total_km": {
-    "low": 3.04,
-    "high": 3.3,
+    "low": 2,
+    "high": 3,
     "precision": 2
   },
   "sport_time": {
-    "start": "00:20:00",
-    "end": "00:23:00"
+    "start": "00:20:05",
+    "end": "00:22:12"
   },
   "total_time": {
-    "start": "00:34:00",
-    "end": "00:39:00"
+    "start": "00:20:10",
+    "end": "00:23:12"
   },
   "cumulative_climb": {
-    "low": 90.0,
-    "high": 96.0,
-    "precision": 0
-  },
-  "average_cadence": {
-    "low": 76.0,
-    "high": 81.0,
+    "low": 10,
+    "high": 40,
     "precision": 0
   },
   "exercise_load": {
-    "low": 48.0,
-    "high": 51.0,
+    "low": 30,
+    "high": 40,
     "precision": 0
   },
-  "font_regular": {
-    "font_path": "fonts/SourceHanSansCN-Regular.otf",
-    "font_size": 36,
-    "color": [
-      0,
-      0,
-      0
-    ]
+  "average_cadence": {
+    "low": 120,
+    "high": 137,
+    "precision": 0
+  },
+  "average_power": {
+    "low": 100,
+    "high": 200,
+    "precision": 0
   },
   "font_bold_big": {
-    "font_path": "fonts/QanelasBlack.otf",
-    "font_size": 180,
-    "color": [
-      0,
-      0,
-      0
-    ]
+    "font_path": "fonts/KeepSans-ExtraBold.otf",
+    "font_size": 215,
+    "color": [0, 0, 0]
   },
   "font_semibold": {
-    "font_path": "fonts/QanelasSemiBold.otf",
-    "font_size": 65,
-    "color": [
-      0,
-      0,
-      0
-    ]
+    "font_path": "fonts/KeepSans-Bold.otf",
+    "font_size": 78,
+    "color": [0, 0, 0]
+  },
+  "font_regular": {
+    "font_path": "fonts/HarmonyOS_Sans_SC_Light.ttf",
+    "font_size": 40,
+    "color": [153, 153, 153]
   },
   "font_clock": {
-    "font_path": "fonts/SourceHanSansCN-Regular.otf",
-    "font_size": 40,
-    "color": [
-      0,
-      0,
-      0
-    ]
+    "font_path": "fonts/HarmonyOS_Sans_SC_Regular.ttf",
+    "font_size": 49,
+    "color": [77, 77, 77]
+  },
+  "font_battery": {
+    "font_path": "fonts/HarmonyOS_Sans_SC_Regular.ttf",
+    "font_size": 35,
+    "color": [77, 77, 77]
+  },
+  "font_username": {
+    "font_path": "fonts/HarmonyOS_Sans_SC_Regular.ttf",
+    "font_size": 46,
+    "color": [0, 0, 0]
   },
   "prefs_file": "keepsultan_prefs.json"
 }
